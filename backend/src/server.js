@@ -54,7 +54,7 @@ app.post('/api/v1/simulate-impact', async (req, res) => {
 
 // Database Connection
 const PORT = process.env.PORT || 8080;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:civicpulse_dev_pass@localhost:27017/civicpulse?authSource=admin';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/civicpulse';
 
 mongoose.connect(MONGO_URI)
     .then(() => {

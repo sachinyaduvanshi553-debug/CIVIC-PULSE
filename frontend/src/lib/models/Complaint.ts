@@ -27,6 +27,7 @@ export interface IComplaintDoc extends Document {
   city: string;
   pincode?: string;
   images: string[];
+  videos?: string[];
   slaDeadline: Date;
   slaBreached: boolean;
   isEmergency: boolean;
@@ -108,6 +109,7 @@ const ComplaintSchema = new Schema<IComplaintDoc>(
     city: { type: String, default: 'Jaipur' },
     pincode: { type: String },
     images: [{ type: String }],
+    videos: [{ type: String }],
     slaDeadline: { type: Date, required: true },
     slaBreached: { type: Boolean, default: false },
     isEmergency: { type: Boolean, default: false },

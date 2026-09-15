@@ -140,6 +140,7 @@ export interface Complaint {
   city: string;
   pincode?: string;
   images: string[];
+  videos?: string[];
   slaDeadline: string;
   slaBreached: boolean;
   isEmergency: boolean;

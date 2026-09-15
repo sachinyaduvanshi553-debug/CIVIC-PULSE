@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
       city = 'Jaipur',
       pincode,
       images = [],
+      videos = [],
       categoryWeight = 1.5,
     } = body;
 
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
       city,
       pincode,
       images,
+      videos,
       slaDeadline,
       slaBreached: false,
       isEmergency: level === 'CRITICAL',

@@ -17,8 +17,8 @@ const userSchema = new mongoose.Schema({
 });
 
 // Pre-save hook to hash password if it's modified
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('passwordHash')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('passwordHash')) return;
   try {
     const salt = await bcrypt.genSalt(10);
     // Note: If you are setting an already hashed password, don't re-hash it!
@@ -28,9 +28,8 @@ userSchema.pre('save', async function (next) {
     if (!this.passwordHash.startsWith('$2')) {
         this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
     }
-    next();
   } catch (error) {
-    next(error);
+    throw error;
   }
 });
 

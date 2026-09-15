@@ -483,6 +483,7 @@ interface CivicState {
   setUser: (user: User, token?: string) => void;
   logoutUser: () => void;
   addComplaint: (complaint: Partial<Complaint>) => Promise<Complaint>;
+  reportComplaint: (data: Partial<Complaint> & { videos?: string[] }) => Complaint;
   assignWorker: (complaintId: string, workerId: string, instructions?: string) => void;
   updateComplaintStatus: (complaintId: string, status: ComplaintStatus, notes?: string) => void;
   workerStartJob: (complaintId: string) => void;
@@ -498,6 +499,8 @@ interface CivicState {
   setDeptFilter: (deptId: string | null) => void;
   setStatusFilter: (status: string | null) => void;
   addVerificationRecord: (rec: DigiLockerVerificationRecord) => void;
+  verifyComplaint: (complaintId: string, departmentId?: string) => void;
+  assignComplaint: (complaintId: string, workerId: string, notes?: string) => void;
 }
 
 export const useCivicStore = create<CivicState>((set, get) => ({
@@ -652,6 +655,7 @@ export const useCivicStore = create<CivicState>((set, get) => ({
       city: 'Jaipur',
       pincode: complaintData.pincode || '302020',
       images: complaintData.images || [],
+      videos: complaintData.videos || [],
       slaDeadline: new Date(Date.now() + slaHours * 3600000).toISOString(),
       slaBreached: false,
       isEmergency: level === 'CRITICAL',
@@ -693,7 +697,92 @@ export const useCivicStore = create<CivicState>((set, get) => ({
     return newComplaint;
   },
 
+  // Synchronous reportComplaint used by ReportIssueWizard
+  reportComplaint: (complaintData) => {
+    const state = get();
+    const cat = state.categories.find((c) => c.id === complaintData.categoryId) || state.categories[0];
+    const categoryWeight = cat?.categoryWeight || 1.5;
+    const severity = (complaintData.severity || 'MEDIUM') as SeverityLevel;
+    const affected = complaintData.affectedCount || 100;
+
+    const level = calculateDeterministicPriority(categoryWeight, severity, affected, !!state.emergencyAlert);
+    const sevScoreMap: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+    const sevVal = sevScoreMap[severity] || 1;
+    const crowdMult = affected > 500 ? 1.6 : affected > 100 ? 1.4 : affected > 25 ? 1.2 : 1.0;
+    const score = Math.round((categoryWeight * 20) + (sevVal * 15) * crowdMult);
+    const slaHours = level === 'CRITICAL' ? 12 : level === 'HIGH' ? 24 : level === 'MEDIUM' ? 48 : 72;
+
+    const newId = `r-${Date.now()}`;
+    const compNum = `CP-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const newComplaint: Complaint = {
+      id: newId,
+      complaintNumber: compNum,
+      citizenId: state.currentUser.id,
+      citizenName: `${state.currentUser.firstName} ${state.currentUser.lastName}`,
+      citizenPhone: state.currentUser.phone || '+91-9829012345',
+      categoryId: cat.id,
+      categoryName: cat.name,
+      categoryCode: cat.code,
+      departmentId: complaintData.departmentId || state.departments[0].id,
+      departmentName: complaintData.departmentName || state.departments[0].name,
+      departmentColor: complaintData.departmentColor || state.departments[0].colorHex,
+      zoneId: complaintData.zoneId || state.zones[0].id,
+      zoneName: complaintData.zoneName || state.zones[0].name,
+      title: complaintData.title || 'Civic Issue Reported',
+      description: complaintData.description || '',
+      status: 'REPORT_SUBMITTED',
+      priority: level,
+      priorityScore: score,
+      severity,
+      affectedCount: affected,
+      latitude: complaintData.latitude || 26.8520,
+      longitude: complaintData.longitude || 75.7680,
+      address: complaintData.address || 'Mansarovar, Jaipur',
+      landmark: complaintData.landmark,
+      city: 'Jaipur',
+      pincode: complaintData.pincode || '302020',
+      images: complaintData.images || [],
+      videos: complaintData.videos || [],
+      slaDeadline: new Date(Date.now() + slaHours * 3600000).toISOString(),
+      slaBreached: false,
+      isEmergency: level === 'CRITICAL',
+      upvotes: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      complaints: [newComplaint, ...state.complaints],
+      history: [
+        ...state.history,
+        {
+          id: `h-${Date.now()}`,
+          complaintId: newId,
+          toStatus: 'REPORT_SUBMITTED' as ComplaintStatus,
+          changedBy: state.currentUser.id,
+          changedByName: `${state.currentUser.firstName} ${state.currentUser.lastName}`,
+          changedByRole: state.currentUser.role,
+          notes: 'Issue reported with GPS coordinates and photographic/video evidence.',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    }));
+
+    // Background sync to API (non-blocking)
+    try {
+      fetch('/api/complaints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newComplaint, categoryWeight }),
+      }).catch((e) => console.log('API sync notice:', e));
+    } catch (_) {}
+
+    return newComplaint;
+  },
+
   assignWorker: (complaintId, workerId, instructions) => {
+
     const state = get();
     const worker = state.workers.find((w) => w.id === workerId);
     set((state) => ({
@@ -916,4 +1005,41 @@ export const useCivicStore = create<CivicState>((set, get) => ({
       verifications: [rec, ...state.verifications],
     }));
   },
+
+  // Official portal: verify a submitted complaint
+  verifyComplaint: (complaintId, departmentId) => {
+    const state = get();
+    set((s) => ({
+      complaints: s.complaints.map((c) =>
+        c.id === complaintId
+          ? {
+              ...c,
+              status: 'VERIFIED' as ComplaintStatus,
+              departmentId: departmentId || c.departmentId,
+              updatedAt: new Date().toISOString(),
+            }
+          : c
+      ),
+      history: [
+        ...s.history,
+        {
+          id: `h-${Date.now()}`,
+          complaintId,
+          fromStatus: 'REPORT_SUBMITTED' as ComplaintStatus,
+          toStatus: 'VERIFIED' as ComplaintStatus,
+          changedBy: state.currentUser.id,
+          changedByName: `${state.currentUser.firstName} ${state.currentUser.lastName}`,
+          changedByRole: state.currentUser.role,
+          notes: 'Complaint verified and routed to relevant department.',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    }));
+  },
+
+  // Official portal: assign complaint to a field worker (alias of assignWorker)
+  assignComplaint: (complaintId, workerId, notes) => {
+    get().assignWorker(complaintId, workerId, notes);
+  },
 }));
+

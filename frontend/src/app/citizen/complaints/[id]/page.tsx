@@ -169,19 +169,27 @@ export default function ComplaintDetailPage() {
               <p className="text-sm text-slate-700 leading-relaxed">{complaint.description}</p>
             </div>
 
-            {/* Images Gallery */}
-            {complaint.images && complaint.images.length > 0 && (
+            {/* Images & Video Gallery */}
+            {((complaint.images && complaint.images.length > 0) || (complaint.videos && complaint.videos.length > 0)) && (
               <div>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  Photographic Evidence
+                  Photographic & Video Evidence
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {complaint.images.map((img, i) => (
+                  {complaint.images?.map((img, i) => (
                     <img
-                      key={i}
+                      key={`img-${i}`}
                       src={img}
                       alt="Evidence"
                       className="w-full h-48 object-cover rounded-xl border border-slate-200 shadow-sm"
+                    />
+                  ))}
+                  {complaint.videos?.map((vid, i) => (
+                    <video
+                      key={`vid-${i}`}
+                      src={vid}
+                      controls
+                      className="w-full h-48 object-cover rounded-xl border border-purple-200 shadow-sm bg-black"
                     />
                   ))}
                 </div>
